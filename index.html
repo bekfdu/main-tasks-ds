@@ -1,0 +1,252 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mijoz Ketishini Bashorat Qilish</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prop-types/15.8.1/prop-types.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+</head>
+<body class="bg-gray-100">
+  <div id="root"></div>
+  <script type="text/babel">
+    function App() {
+      const [formData, setFormData] = React.useState({
+        tenure: '',
+        MonthlyCharges: '',
+        Contract: 'Month-to-month',
+        InternetService: 'Fiber optic',
+        PaymentMethod: 'Electronic check',
+        gender: 'Male',
+        SeniorCitizen: 0,
+        Partner: 'No',
+        Dependents: 'No',
+        PhoneService: 'Yes',
+        MultipleLines: 'No',
+        OnlineSecurity: 'No',
+        OnlineBackup: 'No',
+        DeviceProtection: 'No',
+        TechSupport: 'No',
+        StreamingTV: 'No',
+        StreamingMovies: 'No',
+        PaperlessBilling: 'Yes'
+      });
+      const [prediction, setPrediction] = React.useState(null);
+
+      const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData({ ...formData, [name]: value });
+      };
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        // Soddalashtirilgan bashorat logikasi (namoyish uchun)
+        let score = 0;
+        if (parseInt(formData.tenure) <= 12) score += 0.4;
+        if (formData.InternetService === 'Fiber optic') score += 0.3;
+        if (formData.Contract === 'Month-to-month') score += 0.2;
+        if (parseFloat(formData.MonthlyCharges) > 80) score += 0.1;
+        const churnProbability = Math.min(score, 1.0);
+        
+        setPrediction({
+          churn: churnProbability > 0.5 ? 'Ketadi' : 'Ketmaydi',
+          probability: (churnProbability * 100).toFixed(2),
+        });
+      };
+
+      return (
+        <div className="max-w-2xl mx-auto mt-10 p-6 bg-white rounded-lg shadow-md">
+          <h1 className="text-3xl font-bold mb-6 text-center text-indigo-600">Mijoz Ketishini Bashorat Qilish</h1>
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Tenure (Oylar)</label>
+              <input
+                type="number"
+                name="tenure"
+                value={formData.tenure}
+                onChange={handleChange}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
+                required
+                min="0"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Oylik To'lovlar ($)</label>
+              <input
+                type="number"
+                name="MonthlyCharges"
+                value={formData.MonthlyCharges}
+                onChange={handleChange}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
+                required
+                min="0"
+                step="0.01"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Shartnoma Turi</label>
+              <select
+                name="Contract"
+                value={formData.Contract}
+                onChange={handleChange}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
+              >
+                <option>Oy-ma-oy</option>
+                <option>Bir yillik</option>
+                <option>Ikki yillik</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Internet Xizmati</label>
+              <select
+                name="InternetService"
+                value={formData.InternetService}
+                onChange={handleChange}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
+              >
+                <option>Optik tolali</option>
+                <option>DSL</option>
+                <option>Yo'q</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">To'lov Usuli</label>
+              <select
+                name="PaymentMethod"
+                value={formData.PaymentMethod}
+                onChange={handleChange}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
+              >
+                <option>Elektron chek</option>
+                <option>Pochta cheki</option>
+                <option>Bank o'tkazmasi (avtomatik)</option>
+                <option>Kredit karta (avtomatik)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Jins</label>
+              <select
+                name="gender"
+                value={formData.gender}
+                onChange={handleChange}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
+              >
+                <option>Erkak</option>
+                <option>Ayol</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Katta yoshli (65+)</label>
+              <select
+                name="SeniorCitizen"
+                value={formData.SeniorCitizen}
+                onChange={handleChange}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
+              >
+                <option value="0">Yo'q</option>
+                <option value="1">Ha</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Turmush o'rtog'i</label>
+              <select
+                name="Partner"
+                value={formData.Partner}
+                onChange={handleChange}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
+              >
+                <option>Yo'q</option>
+                <option>Ha</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Qaramog'dagilar</label>
+              <select
+                name="Dependents"
+                value={formData.Dependents}
+                onChange={handleChange}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
+              >
+                <option>Yo'q</option>
+                <option>Ha</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Telefon Xizmati</label>
+              <select
+                name="PhoneService"
+                value={formData.PhoneService}
+                onChange={handleChange}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
+              >
+                <option>Ha</option>
+                <option>Yo'q</option>
+              </select>
+            </div>
+            <div className="md:col-span-2">
+              <button
+                type="submit"
+                className="w-full py-2 px-4 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition duration-200"
+              >
+                Bashorat Qilish
+              </button>
+            </div>
+          </form>
+          {prediction && (
+            <div className="mt-6 p-4 bg-gray-50 rounded-md">
+              <h2 className="text-lg font-semibold text-indigo-600">Bashorat Natijasi</h2>
+              <p className="text-gray-700">Holati: <span className="font-medium">{prediction.churn}</span></p>
+              <p className="text-gray-700">Ehtimollik: <span className="font-medium">{prediction.probability}%</span></p>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

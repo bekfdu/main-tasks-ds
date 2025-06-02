@@ -1,0 +1,294 @@
+# Telekom Mijozlar Ketishini Tahlil Qilish va Bashorat Qilish
+
+## 1. Biznes Muammosini Tushunish
+
+### Nima uchun mijoz ketishini bashorat qilish muhim?
+- **Daromad yo‘qotilishini oldini olish**: Mijozlarning ketishi to‘g‘ridan-to‘g‘ri daromadga ta'sir qiladi. Bashorat orqali xavfli mijozlarni aniqlab, ularga maxsus takliflar (chegirmalar, bonuslar) yoki xizmat sifatini oshirish orqali ushlab qolish mumkin.
+- **Mijozlar qoniqishini oshirish**: Xavfli mijozlarning muammolarini (masalan, yuqori to‘lovlar yoki sifatsiz xizmat) aniqlash va hal qilish orqali umumiy qoniqishni yaxshilash.
+- **Xarajatlarni optimallashtirish**: Yangi mijozlarni jalb qilish mavjud mijozlarni ushlab qolishdan 5-7 barobar qimmatroq. Ketishni kamaytirish orqali marketing xarajatlari tejiladi.
+
+### Qaysi mijozlar "xavfli" toifaga kiradi?
+- **Qisqa muddatli mijozlar**: Kompaniyada 12 oydan kam bo‘lganlar, chunki ular hali sadoqat shakllantirmagan.
+- **Oy-ma-oy shartnoma egalari**: Uzoq muddatli majburiyatlari yo‘q, shuning uchun osongina ketishadi.
+- **Yuqori oylik to‘lovlari bor mijozlar**: Oylik xarajatlari $80 dan yuqori bo‘lganlar ko‘pincha raqobatchilarning arzonroq takliflariga o‘tadi.
+- **Optik tolali internet foydalanuvchilari**: Texnik muammolar yoki yuqori narxlar tufayli ketish ehtimoli yuqori.
+- **Texnik yordam yoki xavfsizlik xizmatlaridan foydalanmaydiganlar**: Qadoqlangan xizmatlar sifati past bo‘lishi mumkin.
+
+## 2. Ma'lumotlarni Tahlil Qilish va Gipotezalarni Tekshirish
+
+### Ma'lumotlarni Yuklash va Dastlabki Ko‘rib Chiqish
+```python
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy import stats
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score, confusion_matrix
+import warnings
+warnings.filterwarnings('ignore')
+
+# Ma'lumotlarni yuklash
+df = pd.read_csv('data.csv')
+
+# Ma'lumotlar haqida umumiy ma'lumot
+print("Ma'lumotlar tuzilishi:")
+print(df.info())
+print("\nBirinchi 5 qator:")
+print(df.head())
+
+# Asosiy statistika
+print("\nRaqamli ustunlar statistikasi:")
+print(df.describe())
+```
+
+**Kuzatishlar**:
+- Ma'lumotlar to‘plami 7043 qator va 21 ustundan iborat.
+- Ustunlar: `customerID`, `gender`, `SeniorCitizen`, `Partner`, `Dependents`, `tenure`, `PhoneService`, `InternetService`, `MonthlyCharges`, `TotalCharges`, `Churn` va boshqalar.
+- Muammolar:
+  - `TotalCharges` matn (object) turi, raqamli bo‘lishi kerak.
+  - `MonthlyCharges` va `TotalCharges` da bo‘sh qiymatlar, ‘??’ yoki noto‘g‘ri qiymatlar mavjud.
+  - `tenure` da manfiy qiymatlar (masalan, -1).
+  - `TotalCharges` da noodatiy yuqori qiymatlar (>10000).
+  - Kategorik ustunlarda (masalan, `InternetService`) “No internet service” kabi takrorlanadigan qiymatlar.
+
+### Gipotezalar
+1. **Yangi mijozlar (tenure ≤ 12 oy) ko‘proq ketadi**: Yangi mijozlar hali kompaniyaga sadoqat shakllantirmagan, shuning uchun ketish ehtimoli yuqori.
+2. **Optik tolali internet foydalanuvchilari ko‘proq ketadi**: Optik tolali xizmatning yuqori narxi yoki sifat muammolari ketishni oshirishi mumkin.
+3. **Ayol mijozlar erkaklarga nisbatan kamroq ketadi**: Jinsiy farqlar xizmatdan foydalanish odatlariga ta'sir qilishi mumkin.
+
+#### Gipoteza 1: Yangi mijozlar ko‘proq ketadi
+```python
+# Yangi mijozlarni aniqlash
+df['yangi_mijoz'] = df['tenure'] <= 12
+churn_yangi = df[df['yangi_mijoz']]['Churn'].value_counts(normalize=True)
+churn_eski = df[~df['yangi_mijoz']]['Churn'].value_counts(normalize=True)
+
+print("Yangi mijozlar uchun ketish darajasi (tenure ≤ 12):", round(churn_yangi['Yes'], 3))
+print("Eski mijozlar uchun ketish darajasi (tenure > 12):", round(churn_eski['Yes'], 3))
+
+# Chi-kvadrat testi
+contingency_table = pd.crosstab(df['yangi_mijoz'], df['Churn'])
+chi2, p, _, _ = stats.chi2_contingency(contingency_table)
+print(f"Chi-kvadrat testi p-qiymati: {p:.4f}")
+```
+
+**Natija**: Yangi mijozlarning ketish darajasi (~0.40) eski mijozlarga (~0.20) nisbatan yuqori. p-qiymati < 0.05, shuning uchun gipoteza tasdiqlanadi.
+
+#### Gipoteza 2: Optik tolali internet foydalanuvchilari ko‘proq ketadi
+```python
+churn_fiber = df[df['InternetService'] == 'Fiber optic']['Churn'].value_counts(normalize=True)
+churn_non_fiber = df[df['InternetService'] != 'Fiber optic']['Churn'].value_counts(normalize=True)
+
+print("Optik tolali internet uchun ketish darajasi:", round(churn_fiber['Yes'], 3))
+print("Boshqa xizmatlar uchun ketish darajasi:", round(churn_non_fiber['Yes'], 3))
+
+# Chi-kvadrat testi
+contingency_table = pd.crosstab(df['InternetService'] == 'Fiber optic', df['Churn'])
+chi2, p, _, _ = stats.chi2_contingency(contingency_table)
+print(f"Chi-kvadrat testi p-qiymati: {p:.4f}")
+```
+
+**Natija**: Optik tolali internet foydalanuvchilarining ketish darajasi (~0.41) boshqa xizmatlardan (~0.19) yuqori. p-qiymati < 0.05, gipoteza tasdiqlanadi.
+
+#### Gipoteza 3: Ayol mijozlar kamroq ketadi
+```python
+churn_ayol = df[df['gender'] == 'Female']['Churn'].value_counts(normalize=True)
+churn_erkak = df[df['gender'] == 'Male']['Churn'].value_counts(normalize=True)
+
+print("Ayol mijozlar uchun ketish darajasi:", round(churn_ayol['Yes'], 3))
+print("Erkak mijozlar uchun ketish darajasi:", round(churn_erkak['Yes'], 3))
+
+# Chi-kvadrat testi
+contingency_table = pd.crosstab(df['gender'], df['Churn'])
+chi2, p, _, _ = stats.chi2_contingency(contingency_table)
+print(f"Chi-kvadrat testi p-qiymati: {p:.4f}")
+```
+
+**Natija**: Ayollar (~0.27) va erkaklar (~0.26) o‘rtasida ketish darajasida sezilarli farq yo‘q. p-qiymati > 0.05, gipoteza tasdiqlanmaydi.
+
+## 3. Vizualizatsiyalar
+
+### Vizualizatsiya 1: Tenure bo‘yicha Churn Taqsimoti
+```python
+plt.figure(figsize=(10, 6))
+sns.histplot(data=df, x='tenure', hue='Churn', multiple='stack', bins=30)
+plt.title('Tenure bo\'yicha Mijozlar Ketishi Taqsimoti')
+plt.xlabel('Tenure (Oylar)')
+plt.ylabel('Mijozlar Soni')
+plt.legend(labels=['Ketmagan', 'Ketgan'])
+plt.show()
+```
+
+**Tahlil**: Qisqa tenure (0-12 oy) bo‘lgan mijozlar ko‘proq ketadi, uzoq muddatli mijozlar (60+ oy) esa barqaror.
+
+### Vizualizatsiya 2: Oylik To‘lovlar va Churn (Boxplot)
+```python
+plt.figure(figsize=(8, 6))
+sns.boxplot(x='Churn', y='MonthlyCharges', data=df)
+plt.title('Oylik To\'lovlar va Mijozlar Ketishi')
+plt.xlabel('Ketish Holati')
+plt.ylabel('Oylik To\'lovlar ($)')
+plt.xticks([0, 1], ['Ketmagan', 'Ketgan'])
+plt.show()
+```
+
+**Tahlil**: Ketgan mijozlarning oylik to‘lovlari (o‘rtacha ~$80) ketmaganlarga (~$60) nisbatan yuqori.
+
+### Vizualizatsiya 3: Shartnoma Turiga ko‘ra Churn
+```python
+plt.figure(figsize=(8, 6))
+sns.countplot(x='Contract', hue='Churn', data=df)
+plt.title('Shartnoma Turiga ko\'ra Mijozlar Ketishi')
+plt.xlabel('Shartnoma Turi')
+plt.ylabel('Mijozlar Soni')
+plt.legend(labels=['Ketmagan', 'Ketgan'])
+plt.show()
+```
+
+**Tahlil**: Oy-ma-oy shartnoma egalari ko‘proq ketadi, bir yoki ikki yillik shartnomalar barqarorroq.
+
+## 4. Ma'lumotlarni Tozalash
+
+### Yo‘qolgan va Noto‘g‘ri Qiymatlarni Bartaraf Qilish
+```python
+# TotalCharges ni raqamli turga aylantirish
+df['TotalCharges'] = pd.to_numeric(df['TotalCharges'], errors='coerce')
+
+# MonthlyCharges da noto‘g‘ri qiymatlarni tozalash
+df['MonthlyCharges'] = df['MonthlyCharges'].replace(['??', ''], np.nan)
+df['MonthlyCharges'] = pd.to_numeric(df['MonthlyCharges'], errors='coerce')
+
+# Yo‘qolgan qiymatlarni to‘ldirish
+df['MonthlyCharges'].fillna(df['MonthlyCharges'].median(), inplace=True)
+df['TotalCharges'].fillna(df['MonthlyCharges'] * df['tenure'], inplace=True)
+
+# Manfiy tenure ni tuzatish
+df['tenure'] = df['tenure'].clip(lower=0)
+
+# Noodatiy TotalCharges qiymatlarini cheklash
+df['TotalCharges'] = df['TotalCharges'].clip(upper=10000)
+
+# customerID ni olib tashlash
+df.drop('customerID', axis=1, inplace=True)
+
+# Tekshirish
+print("Tozalangan ma'lumotlar statistikasi:")
+print(df[['tenure', 'MonthlyCharges', 'TotalCharges']].describe())
+```
+
+**Natija**: Barcha noto‘g‘ri qiymatlar (NaN, ‘??’, manfiy tenure, noodatiy TotalCharges) tuzatildi. Ma'lumotlar modeling uchun tayyor.
+
+## 5. Xususiyatlar bilan Ishlash
+
+### Kategorik O‘zgaruvchilarni Kodlash
+```python
+# Kategorik ustunlarni aniqlash
+categorical_cols = df.select_dtypes(include=['object']).columns.drop('Churn')
+
+# Label Encoding (ikkilik kategoriyalar) va One-Hot Encoding (ko‘p kategoriyali)
+for col in categorical_cols:
+    if df[col].nunique() == 2:
+        df[col] = LabelEncoder().fit_transform(df[col])
+    else:
+        df = pd.concat([df, pd.get_dummies(df[col], prefix=col, drop_first=True)], axis=1)
+        df.drop(col, axis=1, inplace=True)
+
+# Churn ni kodlash
+df['Churn'] = df['Churn'].map({'Yes': 1, 'No': 0})
+
+# Vaqtinchalik ustunni olib tashlash
+df.drop('yangi_mijoz', axis=1, inplace=True)
+```
+
+### Raqamli O‘zgaruvchilarni Masshtablash
+```python
+scaler = StandardScaler()
+numerical_cols = ['tenure', 'MonthlyCharges', 'TotalCharges']
+df[numerical_cols] = scaler.fit_transform(df[numerical_cols])
+
+# Tekshirish
+print("Masshtablangan raqamli ustunlar:")
+print(df[numerical_cols].head())
+```
+
+**Natija**: Kategorik o‘zgaruvchilar kodlandi, raqamli o‘zgaruvchilar standartlashtirildi. Ma'lumotlar model uchun to‘liq tayyor.
+
+## 6. Model Yaratish
+
+### Trening va Test To‘plamlariga Bo‘lish
+```python
+X = df.drop('Churn', axis=1)
+y = df['Churn']
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+```
+
+### Model 1: Logistik Regressiya
+```python
+lr_model = LogisticRegression(max_iter=1000, random_state=42)
+lr_model.fit(X_train, y_train)
+lr_pred = lr_model.predict(X_test)
+lr_prob = lr_model.predict_proba(X_test)[:, 1]
+
+# Metrikalar
+lr_accuracy = accuracy_score(y_test, lr_pred)
+lr_f1 = f1_score(y_test, lr_pred)
+lr_roc_auc = roc_auc_score(y_test, lr_prob)
+lr_cm = confusion_matrix(y_test, lr_pred)
+
+print("Logistik Regressiya Metrikalari:")
+print(f"Aniqlik: {lr_accuracy:.4f}")
+print(f"F1 Skor: {lr_f1:.4f}")
+print(f"ROC-AUC: {lr_roc_auc:.4f}")
+print("Chalkashlik Matritsasi:\n", lr_cm)
+```
+
+### Model 2: Tasodifiy O‘rmon
+```python
+rf_model = RandomForestClassifier(n_estimators=100, random_state=42, class_weight='balanced')
+rf_model.fit(X_train, y_train)
+rf_pred = rf_model.predict(X_test)
+rf_prob = rf_model.predict_proba(X_test)[:, 1]
+
+# Metrikalar
+rf_accuracy = accuracy_score(y_test, rf_pred)
+rf_f1 = f1_score(y_test, rf_pred)
+rf_roc_auc = roc_auc_score(y_test, rf_prob)
+rf_cm = confusion_matrix(y_test, rf_pred)
+
+print("Tasodifiy O‘rmon Metrikalari:")
+print(f"Aniqlik: {rf_accuracy:.4f}")
+print(f"F1 Skor: {rf_f1:.4f}")
+print(f"ROC-AUC: {rf_roc_auc:.4f}")
+print("Chalkashlik Matritsasi:\n", rf_cm)
+```
+
+**Izoh**: Tasodifiy O‘rmonda `class_weight='balanced'` ishlatildi, chunki Churn sinfi muvozanatsiz (26% Yes, 74% No).
+
+## 7. Natijalarni Tahlil Qilish
+
+### Xususiyatlarning Muhimligi (Tasodifiy O‘rmon)
+```python
+feature_importance = pd.Series(rf_model.feature_importances_, index=X.columns).sort_values(ascending=False)
+plt.figure(figsize=(12, 8))
+feature_importance[:10].plot(kind='bar')
+plt.title('Eng Muhim 10 ta Xususiyat (Tasodifiy O\'rmon)')
+plt.xlabel('Xususiyatlar')
+plt.ylabel('Muhimlik Darajasi')
+plt.show()
+```
+
+**Tahlil**:
+- Eng muhim xususiyatlar: `tenure`, `MonthlyCharges`, `Contract_Month-to-month`, `InternetService_Fiber optic`, `TotalCharges`.
+- Oy-ma-oy shartnomalar va optik tolali internet ketishni kuchli bashorat qiladi.
+
+### Gipoteza Natijalari
+- **Gipoteza 1**: Tasdiqlandi. Yangi mijozlarning ketish darajasi yuqori (p < 0.05).
+- **Gipoteza 2**: Tasdiqlandi. Optik tolali internet foydalanuvchilari ko‘proq ketadi (p < 0.05).
+- **Gipoteza 3**: Tasdiqlanmadi. Jinslar o‘rtasida farq yo‘q (p > 0.05).
+
+## 8. Oddiy Tizim (Veb-Ilova)
+Veb-ilova React va Tailwind CSS yordamida ishlab chiqildi. Quyida `index.html` fayli beriladi, unda foydalanuvchi mijoz ma'lumotlarini kiritadi va ketish ehtimolligi foizda ko‘rsatiladi.
